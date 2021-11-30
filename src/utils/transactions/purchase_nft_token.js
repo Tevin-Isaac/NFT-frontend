@@ -4,16 +4,16 @@ import { transactions, codec, cryptography } from "@liskhq/lisk-client";
 import { getFullAssetSchema, calcMinTxFee } from "../common";
 import { fetchAccountInfo } from "../../api";
 
-export const purchaseNFTTokenSchema = {
-  $id: "lisk/nft/purchase",
+export const createNFTTokenSchema = {
+  $id: "lisk/create-nft-asset",
   type: "object",
-  required: ["nftId", "purchaseValue"],
+  required: ["minPurchaseMargin", "initValue", "name"],
   properties: {
-    nftId: {
-      dataType: "bytes",
+    minPurchaseMargin: {
+      dataType: "uint32",
       fieldNumber: 1,
     },
-    purchaseValue: {
+    initValue: {
       dataType: "uint64",
       fieldNumber: 2,
     },
@@ -24,10 +24,10 @@ export const purchaseNFTTokenSchema = {
   },
 };
 
-export const purchaseNFTToken = async ({
+export const createNFTToken = async ({
   name,
-  nftId,
-  purchaseValue,
+  initValue,
+  minPurchaseMargin,
   passphrase,
   fee,
   networkIdentifier,
@@ -36,23 +36,24 @@ export const purchaseNFTToken = async ({
   const { publicKey } = cryptography.getPrivateAndPublicKeyFromPassphrase(
     passphrase
   );
-  const address = cryptography.getAddressFromPassphrase(passphrase);
+  const address = cryptography.getAddressFromPassphrase(passphrase).toString("hex");
+
   const {
     sequence: { nonce },
-  } = await fetchAccountInfo(address.toString("hex"));
+  } = await fetchAccountInfo(address);
 
   const { id, ...rest } = transactions.signTransaction(
-    purchaseNFTTokenSchema,
+    createNFTTokenSchema,
     {
       moduleID: 1024,
-      assetID: 1,
+      assetID: 0,
       nonce: BigInt(nonce),
       fee: BigInt(transactions.convertLSKToBeddows(fee)),
       senderPublicKey: publicKey,
       asset: {
         name,
-        nftId: Buffer.from(nftId, "hex"),
-        purchaseValue: BigInt(transactions.convertLSKToBeddows(purchaseValue)),
+        initValue: BigInt(transactions.convertLSKToBeddows(initValue)),
+        minPurchaseMargin: parseInt(minPurchaseMargin),
       },
     },
     Buffer.from(networkIdentifier, "hex"),
@@ -61,7 +62,7 @@ export const purchaseNFTToken = async ({
 
   return {
     id: id.toString("hex"),
-    tx: codec.codec.toJSON(getFullAssetSchema(purchaseNFTTokenSchema), rest),
-    minFee: calcMinTxFee(purchaseNFTTokenSchema, minFeePerByte, rest),
+    tx: codec.codec.toJSON(getFullAssetSchema(createNFTTokenSchema), rest),
+    minFee: calcMinTxFee(createNFTTokenSchema, minFeePerByte, rest),
   };
 };
